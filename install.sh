@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409081753-git
+##@Version           :  202409081805-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Sunday, Sep 08, 2024 17:53 EDT
+# @@Created          :  Sunday, Sep 08, 2024 18:05 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409081753-git"
+VERSION="202409081805-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -377,7 +377,7 @@ HOST_NGINX_INTERNAL_DOMAIN=""
 HOST_NGINX_INTERNAL_HOST=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Enable this if container is running a webserver - [yes/no] [internalPort] [yes/no] [yes/no] [listen]
-CONTAINER_WEB_SERVER_ENABLED="yes"
+CONTAINER_WEB_SERVER_ENABLED="no"
 CONTAINER_WEB_SERVER_INT_PORT="80"
 CONTAINER_WEB_SERVER_SSL_ENABLED="no"
 CONTAINER_WEB_SERVER_AUTH_ENABLED="no"
@@ -547,11 +547,11 @@ STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
 SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
 # Email Settings
 MAILER_ENABLED=1
-MAILER_HOST=smtp-relay.$DOMAINNAME
+MAILER_HOST=smtp-relay.$SET_HOST_FULL_DOMAIN
 MAILER_PORT=465
 MAILER_SECURITY=starttls
 MAILER_NOREPLY_NAME="CasjaysDev Notes"
-MAILER_NOREPLY_EMAIL="no-reply@$CONTAINER_HOSTNAME"
+MAILER_NOREPLY_EMAIL="no-reply@$SET_HOST_FULL_DOMAIN"
 
 EOF
 }
@@ -2243,9 +2243,10 @@ elif [ -f "$INSTDIR/docker-compose.yml" ] && [ -n "$(type -P docker-compose)" ];
 fi
 if [ -x "$DOCKERMGR_INSTALL_SCRIPT" ]; then
   printf_cyan "Reinstalling container: $CONTAINER_NAME"
-  eval "$DOCKERMGR_INSTALL_SCRIPT" >/dev/null 2>&1
+  eval "$DOCKERMGR_INSTALL_SCRIPT" 2>"${TMP:-/tmp}/$APPNAME.err.log" >/dev/null
   __container_is_running && exitCode=0 || exitCode=1
   [ $exitCode = 0 ] && printf_green "Your container has been installed" || printf_red "Failed to reinstall the container"
+  __printf_color "3" "Errors logged to:" "${TMP:-/tmp}/$APPNAME.err.log"
   exit $exitCode
 else
   __create_docker_script
@@ -2654,7 +2655,7 @@ if [ "$CONTAINER_INSTALLED" = "true" ] || __docker_ps_all -q; then
     __printf_color "2" "$POST_SHOW_FINISHED_MESSAGE"
     printf '# - - - - - - - - - - - - - - - - - - - - - - - - - -\n'
   fi
-  __printf_color "6" "$APPNAME has been installed to:" "$APPDIR"
+  __printf_color "6" "$APPNAME has been installed to: $APPDIR"
   printf '# - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n'
   __show_post_message
 else
@@ -2665,7 +2666,7 @@ else
     printf_red "Something seems to have gone wrong with the install"
   fi
   if [ -f "$DOCKERMGR_INSTALL_SCRIPT" ]; then
-    __printf_color "3" "Script:" "$DOCKERMGR_INSTALL_SCRIPT"
+    __printf_color "3" "Script: $DOCKERMGR_INSTALL_SCRIPT"
   fi
   exit 10
 fi
