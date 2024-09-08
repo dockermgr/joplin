@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409081418-git
+##@Version           :  202409081514-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Sunday, Sep 08, 2024 14:18 EDT
+# @@Created          :  Sunday, Sep 08, 2024 15:14 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409081418-git"
+VERSION="202409081514-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -146,8 +146,8 @@ __public_ip() { curl -q -LSsf ${1:--4} "http://ifconfig.co" | grep -v '^$' | hea
 __local_lan_ip() { __ifconfig $SET_LAN_DEV | grep -w 'inet' | awk -F ' ' '{print $2}' | __is_private_ip | head -n1 | grep '^' || ip address show $SET_LAN_DEV 2>&1 | grep 'inet ' | awk -F ' ' '{print $2}' | sed 's|/.*||g' | __is_private_ip | grep -v '^$' | head -n1 | grep '^' || echo "$CURRENT_IP_4" | grep '^' || return 1; }
 __my_default_lan_address() { __ifconfig $SET_LAN_DEV | grep -w 'inet' | awk -F ' ' '{print $2}' | head -n1 | grep '^' || ip address show $SET_LAN_DEV 2>&1 | grep 'inet ' | awk -F ' ' '{print $2}' | sed 's|/.*||g' | grep -v '^$' | head -n1 | grep '^' || echo "$CURRENT_IP_4" | grep '^' || return 1; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__check_ssl_cert() { if curl -q -viLSsf "${1:-$CONTAINER_HOSTNAME}" 2>&1 | grep -q 'does not match'; then return 0; else return 1; fi; }
-__create_cert() { if __cmd_exists certbot && [ -f "/etc/certbot/dns.conf" ]; then certbot create -vvvv -n --expand --dns-rfc2136 --dns-rfc2136-credentials "/etc/certbot/dns.conf" $CONTAINER_HOSTNAME >/dev/null 2>&1 || return 2; fi; }
+__check_ssl_cert() { if curl -q -viLSsf "${1:-$CONTAINER_HOSTNAME}" 2>&1 | grep -qE 'SSL certificate problem|does not match'; then return 0; else return 1; fi; }
+__create_cert() { if __cmd_exists certbot && [ -f "/etc/certbot/dns.conf" ]; then certbot certonly -vvvv --agree-tos --email ssl-admin@$HOSTNAME -n --expand --dns-rfc2136 --dns-rfc2136-credentials "/etc/certbot/dns.conf" -d "$CONTAINER_HOSTNAME" -d "*.$CONTAINER_HOSTNAME" >/dev/null 2>&1 || return 2; fi; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Ensure docker is installed and running
 __docker_check || __docker_init
@@ -322,6 +322,9 @@ HOST_ETC_HOSTS_INIT_FILE=""
 DOCKER_SOCKET_ENABLED="no"
 DOCKER_SOCKER_READONLY="yes"
 DOCKER_SOCKET_MOUNT=""
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Will set --env-file "$DOCKERMGR_CONFIG_DIR/env/$APPNAME.env" to docker run [yes/no]
+DOCKER_ENV_FILE_ENABLED=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Mount docker config - [yes/no] [~/.docker/config.json] [/root/.docker/config.json]
 DOCKER_CONFIG_ENABLED="no"
@@ -537,10 +540,10 @@ DOCKERMGR_ENABLE_INSTALL_SCRIPT="yes"
 __custom_docker_env() {
   cat <<EOF | tee -p | grep -v '^$'
 APP_PORT='80'
-APP_BASE_URL="$CONTAINER_HOSTNAME"
+APP_BASE_URL="/"
 SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
 STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
- 
+
 EOF
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -563,6 +566,7 @@ __container_import_variables() {
   local base_dir="" base_file="$1"
   base_dir="$(realpath "$DATADIR")/$(dirname "$base_file")"
   [ -d "$base_dir" ] || mkdir -p "$base_dir"
+  [ -f "$base_dir/$base_file" ] && return
   cat <<EOF | __remove_extra_spaces | tee -p "$base_dir/$base_file" &>/dev/null
 
 EOF
@@ -1068,7 +1072,7 @@ if [ -z "$CONTAINER_NAME" ]; then
   CONTAINER_NAME="$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")"
 fi
 DOCKER_SET_OPTIONS+=("--name=$CONTAINER_NAME")
-DOCKER_SET_OPTIONS+=("--env ENV_CONTAINER_NAME=$CONTAINER_NAME")
+DOCKER_SET_OPTIONS+=("--env CONTAINER_NAME=$CONTAINER_NAME")
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setup time zone
 if [ -z "$CONTAINER_TIMEZONE" ]; then
@@ -1764,25 +1768,21 @@ if [ -n "$CONTAINER_DEVICES" ]; then
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setup enviroment variables
-if [ -f "$DOCKERMGR_CONFIG_DIR/env/$APPNAME.env" ]; then
-  DOCKER_SET_ENV+="--env-files $DOCKERMGR_CONFIG_DIR/env/$APPNAME.env "
-else
-  if [ -n "$CONTAINER_ENV" ]; then
-    DOCKER_SET_ENV=""
-    CONTAINER_ENV="${CONTAINER_ENV//,/ }"
-    for env in $CONTAINER_ENV; do
-      if [ "$env" != "" ] && [ "$env" != " " ]; then
-        DOCKER_SET_ENV+="--env $env "
-      fi
-    done
-    unset env
-  fi
+if [ -n "$CONTAINER_ENV" ]; then
+  DOCKER_SET_ENV_VAR=""
+  CONTAINER_ENV="${CONTAINER_ENV//,/ }"
+  for env in $CONTAINER_ENV; do
+    if [ "$env" != "" ] && [ "$env" != " " ]; then
+      DOCKER_SET_ENV_VAR+="--env $env "
+    fi
+  done
+  unset env
 fi
 if [ -n "$CONTAINER_OPT_ENV_VAR" ]; then
   CONTAINER_OPT_ENV_VAR="${CONTAINER_OPT_ENV_VAR//,/ }"
   for env in $CONTAINER_OPT_ENV_VAR; do
     if [ "$env" != "" ] && [ "$env" != " " ]; then
-      DOCKER_SET_ENV+="--env $env "
+      DOCKER_SET_ENV_VAR+="--env $env "
     fi
   done
   unset env
@@ -2045,6 +2045,18 @@ if [ -n "$ENV_PORTS" ]; then
 fi
 unset DOCKER_SET_PORTS_ENV_TMP ENV_PORTS SET_PORTS_ENV_TMP
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Reset variables if the .env file exists
+if [ "$DOCKER_ENV_FILE_ENABLED" = "yes" ]; then
+  for get_env in $DOCKER_SET_ENV_VAR; do
+    set_env="${get-env//--env/}"
+    set_env="$(__trim "$set_env")"
+    echo "$set_env" >>"$DOCKERMGR_CONFIG_DIR/env/$CONTAINER_NAME.env"
+  done
+  DOCKER_SET_ENV_VAR="${DOCKER_SET_ENV_VAR//$get_env/}"
+  DOCKER_SET_ENV_FILE="--env-file $DOCKERMGR_CONFIG_DIR/env/$CONTAINER_NAME.env"
+fi
+DOCKER_SET_ENV_VAR="${DOCKER_SET_ENV_FILE:-$DOCKER_SET_ENV_VAR}"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DOCKER_CUSTOM_ARRAY="$(__retrieve_custom_env | __custom_docker_clean_env)"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Clean up variables
@@ -2052,7 +2064,7 @@ DOCKER_SET_PUBLISH="$(printf '%s\n' "${DOCKER_SET_TMP_PUBLISH[@]}" | sort -Vu | 
 HUB_IMAGE_URL="$(__trim "${HUB_IMAGE_URL[*]:-}")"                                             # image url
 HUB_IMAGE_TAG="$(__trim "${HUB_IMAGE_TAG[*]:-}")"                                             # image tag
 DOCKER_GET_CAP="$(__trim "${DOCKER_SET_CAP[*]:-}")"                                           # --capabilites
-DOCKER_GET_ENV="$(__trim "${DOCKER_SET_ENV[*]:-}")"                                           # --env
+DOCKER_GET_ENV="$(__trim "${DOCKER_SET_ENV_VAR[*]:-}")"                                       # --env
 DOCKER_GET_DEV="$(__trim "${DOCKER_SET_DEV[*]:-}")"                                           # --device
 DOCKER_GET_DNS="$(__trim "${DOCKER_SET_DNS[*]:-}")"                                           # --dns
 DOCKER_GET_MNT="$(__trim "${DOCKER_SET_MNT[*]:-}")"                                           # --volume
@@ -2633,7 +2645,6 @@ fi
 if [ "$USER" != "root" ] && [ -n "$USER" ]; then
   __sudo_exec chown -f "$USER":"$USER" "$DATADIR" "$INSTDIR" &>/dev/null
 fi
-#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if __check_ssl_cert; then printf_color "5" "Creating certificate for $CONTAINER_HOSTNAME" && __create_cert; fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
