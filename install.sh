@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409081514-git
+##@Version           :  202409081553-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Sunday, Sep 08, 2024 15:14 EDT
+# @@Created          :  Sunday, Sep 08, 2024 15:53 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409081514-git"
+VERSION="202409081553-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -252,7 +252,7 @@ HUB_IMAGE_URL="$HUB_ORG/joplin"
 # image tag - [docker pull HUB_IMAGE_URL:tag]
 HUB_IMAGE_TAG="latest"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Set the container name Default: [org-repo-tag-appname]
+# Set the container name Default: [org-repo-tag]
 CONTAINER_NAME=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set this if the container depend on external file/app
@@ -541,10 +541,23 @@ DOCKERMGR_ENABLE_INSTALL_SCRIPT="yes"
 # Set custom container enviroment variables - [MYVAR="VAR"]
 __custom_docker_env() {
   cat <<EOF | tee -p | grep -v '^$'
-APP_PORT='80'
-APP_BASE_URL="/"
-SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
+# App Settings
+APP_PORT="80"
+APP_NAME="CasjaysDev Notes"
+APP_BASE_URL="https://$CONTAINER_HOSTNAME"
+RUNNING_IN_DOCKER=true
+# Storage Options
 STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
+# Database settings
+SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
+# Email Settings
+MAILER_ENABLED=1
+MAILER_HOST=smtp-relay.$DOMAINNAME
+MAILER_PORT=465
+MAILER_SECURITY=starttls
+MAILER_NOREPLY_NAME="CasjaysDev Notes"
+MAILER_NOREPLY_EMAIL="no-reply@$CONTAINER_HOSTNAME"
+
 
 EOF
 }
@@ -2227,8 +2240,9 @@ elif [ -f "$INSTDIR/docker-compose.yml" ] && [ -n "$(type -P docker-compose)" ];
   fi
 fi
 if [ -x "$DOCKERMGR_INSTALL_SCRIPT" ]; then
-  printf_cyan "Reinstalling the $CONTAINER_NAME"
-  eval "$DOCKERMGR_INSTALL_SCRIPT" && exitCode=0 || exitCode=1
+  printf_cyan "Reinstalling container: $CONTAINER_NAME"
+  eval "$DOCKERMGR_INSTALL_SCRIPT" >/dev/null 2>&1
+  __container_is_running && exitCode=0 || exitCode=1
   [ $exitCode = 0 ] && printf_green "Your container has been installed" || printf_red "Failed to reinstall the container"
   exit $exitCode
 else
