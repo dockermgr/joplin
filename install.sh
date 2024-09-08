@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409081723-git
+##@Version           :  202409081731-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Sunday, Sep 08, 2024 17:23 EDT
+# @@Created          :  Sunday, Sep 08, 2024 17:31 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409081723-git"
+VERSION="202409081731-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -227,12 +227,6 @@ SET_DOMAIN_NAME=$(__domain_name || hostname -f | grep '^' || echo 'home')
 # Set hostname and domain
 SET_HOST_FULL_NAME="${FULL_HOST:-$SET_LONG_HOSTNAME}"
 SET_HOST_FULL_DOMAIN="${FULL_DOMAIN:-$SET_DOMAIN_NAME}"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Define folders
-HOST_DATA_DIR='$DATADIR/data'
-HOST_CONFIG_DIR='$DATADIR/config'
-LOCAL_DATA_DIR='${LOCAL_DATA_DIR:-$HOST_DATA_DIR}'
-LOCAL_CONFIG_DIR='${LOCAL_CONFIG_DIR:-$HOST_CONFIG_DIR}'
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # SSL Setup server mounts - [/etc/ssl/CA/certs/ca.crt] [/etc/ssl/CA/certs/host.crt] [/etc/ssl/CA/certs/host.key]
 HOST_SSL_CA=""
@@ -558,6 +552,7 @@ MAILER_PORT=465
 MAILER_SECURITY=starttls
 MAILER_NOREPLY_NAME="CasjaysDev Notes"
 MAILER_NOREPLY_EMAIL="no-reply@$CONTAINER_HOSTNAME"
+
 EOF
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -846,12 +841,11 @@ if [ -z "$CONTAINER_NAME" ]; then
 fi
 CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-APPDIR="$(eval echo "$APPDIR")"
-INSTDIR="$(eval echo "$INSTDIR")"
-HOST_DATA_DIR="$(eval echo "$HOST_DATA_DIR")"
-HOST_CONFIG_DIR="$(eval echo "$HOST_CONFIG_DIR")"
-LOCAL_DATA_DIR="$(eval echo "$LOCAL_DATA_DIR")"
-LOCAL_CONFIG_DIR="$(eval echo "$LOCAL_CONFIG_DIR")"
+# Define folders
+HOST_DATA_DIR="$DATADIR/data"
+HOST_CONFIG_DIR="$DATADIR/config"
+LOCAL_DATA_DIR="${LOCAL_DATA_DIR:-$HOST_DATA_DIR}"
+LOCAL_CONFIG_DIR="${LOCAL_CONFIG_DIR:-$HOST_CONFIG_DIR}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ -z "$DATADIR" ]; then
   DATADIR="$APPDIR/$CONTAINER_NAME/rootfs"
