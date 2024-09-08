@@ -842,9 +842,7 @@ fi
 CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Define folders
-if [ -z "$DATADIR" ]; then
-  DATADIR="$APPDIR/$CONTAINER_NAME/rootfs"
-fi
+DATADIR="$APPDIR/$CONTAINER_NAME/rootfs"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 HOST_DATA_DIR="$DATADIR/data"
 HOST_CONFIG_DIR="$DATADIR/config"
