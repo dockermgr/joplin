@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409101742-git
+##@Version           :  202409101758-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Tuesday, Sep 10, 2024 17:42 EDT
+# @@Created          :  Tuesday, Sep 10, 2024 17:58 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409101742-git"
+VERSION="202409101758-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -347,7 +347,7 @@ HOST_PROC_MOUNT_ENABLED="no"
 HOST_MODULES_MOUNT_ENABLED="no"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set container hostname and domain - Default: [joplin.$SET_HOST_FULL_NAME] [$SET_HOST_FULL_DOMAIN]
-CONTAINER_HOSTNAME="joplin"
+CONTAINER_HOSTNAME="$APPNAME"
 CONTAINER_DOMAINNAME="casjay.pro"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set the network type - default is bridge - [bridge/host]
@@ -829,17 +829,28 @@ EOF
   chmod -Rf 755 "$DOCKERMGR_INSTALL_SCRIPT"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+if [ -z "$HUB_IMAGE_URL" ] || [ "$HUB_IMAGE_URL" = " " ]; then
+  printf_exit "Please set the url to the containers image"
+elif echo "$HUB_IMAGE_URL" | grep -q ':'; then
+  HUB_IMAGE_URL="$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $1}')"
+  HUB_IMAGE_TAG="${HUB_IMAGE_TAG:-$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $2}')}"
+fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Ensure that the image has a tag
+[ -n "$HUB_IMAGE_TAG" ] || HUB_IMAGE_TAG="latest"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # cleanup registry variables
 HUB_IMAGE_TAG="${HUB_IMAGE_TAG//*:/}"
 HUB_IMAGE_URL="${HUB_IMAGE_URL//*:\/\//}"
+HUB_IMAGE_URL="${HUB_IMAGE_URL//:*/}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set containers name
 REPO_NAME="$(basename "${HUB_IMAGE_URL//:*/}")"
 if [ -z "$CONTAINER_NAME" ]; then
   if [ "$REPO_NAME" = "$$APPNAME" ]; then
-    CONTAINER_NAME="${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG"
+    CONTAINER_NAME="$(echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")"
   else
-    CONTAINER_NAME="${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG-$APPNAME"
+    CONTAINER_NAME="$(echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG-$APPNAME")"
   fi
 fi
 CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")}"
@@ -1091,18 +1102,6 @@ DOCKER_SET_OPTIONS=()
 CONTAINER_ENV_PORTS=()
 DOCKER_SET_TMP_PUBLISH=()
 NGINX_REPLACE_INCLUDE=""
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Ensure that the image has a tag
-if [ -z "$HUB_IMAGE_TAG" ]; then
-  HUB_IMAGE_TAG="latest"
-fi
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ -z "$HUB_IMAGE_URL" ] || [ "$HUB_IMAGE_URL" = " " ]; then
-  printf_exit "Please set the url to the containers image"
-elif echo "$HUB_IMAGE_URL" | grep -q ':'; then
-  HUB_IMAGE_URL="$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $1}')"
-  HUB_IMAGE_TAG="${HUB_IMAGE_TAG:-$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $2}')}"
-fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DOCKER_SET_OPTIONS+=("--name=$CONTAINER_NAME")
 DOCKER_SET_OPTIONS+=("--env CONTAINER_NAME=$CONTAINER_NAME")
