@@ -541,7 +541,7 @@ __custom_docker_env() {
 # App Settings
 APP_PORT="80"
 APP_NAME="CasjaysDev Notes"
-APP_BASE_URL="https://$CONTAINER_HOSTNAME"
+APP_BASE_URL="http://$CONTAINER_HOSTNAME"
 RUNNING_IN_DOCKER=true
 # Storage Options
 STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
