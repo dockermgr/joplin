@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409101714-git
+##@Version           :  202409101742-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Tuesday, Sep 10, 2024 17:14 EDT
+# @@Created          :  Tuesday, Sep 10, 2024 17:42 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -27,7 +27,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409101714-git"
+VERSION="202409101742-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -829,13 +829,17 @@ EOF
   chmod -Rf 755 "$DOCKERMGR_INSTALL_SCRIPT"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# cleanup registry variables
+HUB_IMAGE_TAG="${HUB_IMAGE_TAG//*:/}"
+HUB_IMAGE_URL="${HUB_IMAGE_URL//*:\/\//}"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set containers name
 REPO_NAME="$(basename "${HUB_IMAGE_URL//:*/}")"
 if [ -z "$CONTAINER_NAME" ]; then
   if [ "$REPO_NAME" = "$$APPNAME" ]; then
-    CONTAINER_NAME="$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")"
+    CONTAINER_NAME="${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG"
   else
-    CONTAINER_NAME="$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG-$APPNAME")"
+    CONTAINER_NAME="${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG-$APPNAME"
   fi
 fi
 CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "${HUB_IMAGE_URL//\/-/}-$HUB_IMAGE_TAG")}"
@@ -879,10 +883,6 @@ mkdir -p "$DOCKERMGR_CONFIG_DIR/containers"
 # fix directory permissions
 chmod -f 777 "$APPDIR"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# variable cleanup
-HUB_IMAGE_TAG="${HUB_IMAGE_TAG//*:/}"
-HUB_IMAGE_URL="${HUB_IMAGE_URL//*:\/\//}"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # verify required file exists
 if [ -n "$CONTAINER_REQUIRES" ]; then
   CONTAINER_REQUIRES="${CONTAINER_REQUIRES//,/}"
@@ -900,14 +900,64 @@ if [ -n "$CONTAINER_REQUIRES" ]; then
   fi
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-[ "$(hostname -s)" = "testing" ] && CONTAINER_HOSTNAME="$APPNAME"
-[ "$(hostname -s)" = "testing" ] && CONTAINER_DOMAINNAME="$HOSTNAME"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setup containers hostname
-[ -n "$CONTAINER_DOMAINNAME" ] || CONTAINER_DOMAINNAME="$SET_HOST_FULL_DOMAIN"
+if [ -z "$CONTAINER_HOSTNAME" ]; then
+  [ "$(hostname -s)" = "testing" ] && CONTAINER_HOSTNAME="$APPNAME"
+  [ "$(hostname -s)" = "testing" ] && CONTAINER_DOMAINNAME="$HOSTNAME"
+fi
 [ -n "$CONTAINER_HOSTNAME" ] || CONTAINER_HOSTNAME="$APPNAME.$CONTAINER_DOMAINNAME"
-IS_SAME_SERVER="$(__ping_host '1.1.1.1' && [ "$(__get_records)" = "$(__public_ip)" ] && echo "yes" || false)"
-[ -n "$IS_SAME_SERVER" ] || CONTAINER_DOMAINNAME="$HOSTNAME"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+if [ -z "$CONTAINER_DOMAINNAME" ]; then
+  IS_SAME_SERVER="$(__ping_host '1.1.1.1' && [ "$(__get_records)" = "$(__public_ip)" ] && echo "yes" || false)"
+  [ -n "$IS_SAME_SERVER" ] || CONTAINER_DOMAINNAME="$HOSTNAME"
+fi
+[ -n "$CONTAINER_DOMAINNAME" ] || CONTAINER_DOMAINNAME="$SET_HOST_FULL_DOMAIN"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[ -n "$CONTAINER_OPT_HOSTNAME" ] && CONTAINER_HOSTNAME="$CONTAINER_OPT_HOSTNAME"
+[ -n "$CONTAINER_OPT_DOMAINNAME" ] && CONTAINER_DOMAINNAME="$CONTAINER_OPT_DOMAINNAME"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# SSL Setup container mounts
+CONTAINER_SSL_DIR="${CONTAINER_SSL_DIR:-/config/ssl}"
+CONTAINER_SSL_CA="${CONTAINER_SSL_CA:-$CONTAINER_SSL_DIR/ca.crt}"
+CONTAINER_SSL_CRT="${CONTAINER_SSL_CRT:-$CONTAINER_SSL_DIR/localhost.crt}"
+CONTAINER_SSL_KEY="${CONTAINER_SSL_KEY:-$CONTAINER_SSL_DIR/localhost.key}"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Setup ssl certs
+if [ "$CONTAINER_WEB_SERVER_SSL_ENABLED" = "true" ]; then
+  if [ -z "$HOST_SSL_CA" ]; then
+    if [ -f "/etc/ssl/cert.pem" ]; then
+      HOST_SSL_CA="/etc/ssl/cert.pem"
+    elif [ -f "/etc/ssl/certs/ca-bundle.crt" ]; then
+      HOST_SSL_CA="/etc/ssl/certs/ca-bundle.crt"
+    elif [ -f "/etc/ssl/CA/CasjaysDev/certs/ca.crt" ]; then
+      HOST_SSL_CA="/etc/ssl/CA/CasjaysDev/certs/ca.crt"
+    fi
+  fi
+  if [ -z "$HOST_SSL_CRT" ]; then
+    if [ -f "/etc/letsencrypt/live/domain/fullchain.pem" ]; then
+      HOST_SSL_CRT="/etc/letsencrypt/live/domain/fullchain.pem"
+    elif [ -f "/etc/ssl/CA/CasjaysDev/certs/localhost.crt" ]; then
+      HOST_SSL_CRT="/etc/ssl/CA/CasjaysDev/certs/localhost.crt"
+    fi
+  fi
+  if [ -z "$HOST_SSL_KEY" ]; then
+    if [ -f "/etc/letsencrypt/live/domain/privkey.pem" ]; then
+      HOST_SSL_KEY="/etc/letsencrypt/live/domain/privkey.pem"
+    elif [ -f "/etc/ssl/CA/CasjaysDev/private/localhost.key" ]; then
+      HOST_SSL_KEY="/etc/ssl/CA/CasjaysDev/private/localhost.key"
+    fi
+  fi
+  if [ -n "$HOST_SSL_CA" ]; then
+    HOST_SSL_CA="$(realpath "$HOST_SSL_CA")"
+  fi
+  if [ -n "$HOST_SSL_CRT" ]; then
+    HOST_SSL_CRT="$(realpath "$HOST_SSL_CRT")"
+  fi
+  if [ -n "$HOST_SSL_KEY" ]; then
+    HOST_SSL_KEY="$(realpath "$HOST_SSL_KEY")"
+  fi
+  SSL_ENABLED="yes"
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # rewrite variables from env file
 INIT_SCRIPT_ONLY="${ENV_INIT_SCRIPT_ONLY:-$INIT_SCRIPT_ONLY}"
@@ -1032,52 +1082,6 @@ DOCKER_CAP_NET_ADMIN="${ENV_DOCKER_CAP_NET_ADMIN:-$DOCKER_CAP_NET_ADMIN}"
 DOCKER_CAP_NET_BIND_SERVICE="${ENV_DOCKER_CAP_NET_BIND_SERVICE:-$DOCKER_CAP_NET_BIND_SERVICE}"
 DOCKERMGR_ENABLE_INSTALL_SCRIPT="${SCRIPT_ENABLED:-$DOCKERMGR_ENABLE_INSTALL_SCRIPT}"
 CONTAINER_USER_ADMIN_PASS_LENGTH="${ENV_CONTAINER_USER_ADMIN_PASS_LENGTH:-$CONTAINER_USER_ADMIN_PASS_LENGTH}"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-[ -n "$CONTAINER_OPT_HOSTNAME" ] && ENV_HOSTNAME="$CONTAINER_OPT_HOSTNAME"
-[ -n "$CONTAINER_OPT_DOMAINNAME" ] && CONTAINER_DOMAINNAME="$CONTAINER_OPT_DOMAINNAME"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# SSL Setup container mounts
-CONTAINER_SSL_DIR="${CONTAINER_SSL_DIR:-/config/ssl}"
-CONTAINER_SSL_CA="${CONTAINER_SSL_CA:-$CONTAINER_SSL_DIR/ca.crt}"
-CONTAINER_SSL_CRT="${CONTAINER_SSL_CRT:-$CONTAINER_SSL_DIR/localhost.crt}"
-CONTAINER_SSL_KEY="${CONTAINER_SSL_KEY:-$CONTAINER_SSL_DIR/localhost.key}"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Setup ssl certs
-if [ "$CONTAINER_WEB_SERVER_SSL_ENABLED" = "true" ]; then
-  if [ -z "$HOST_SSL_CA" ]; then
-    if [ -f "/etc/ssl/cert.pem" ]; then
-      HOST_SSL_CA="/etc/ssl/cert.pem"
-    elif [ -f "/etc/ssl/certs/ca-bundle.crt" ]; then
-      HOST_SSL_CA="/etc/ssl/certs/ca-bundle.crt"
-    elif [ -f "/etc/ssl/CA/CasjaysDev/certs/ca.crt" ]; then
-      HOST_SSL_CA="/etc/ssl/CA/CasjaysDev/certs/ca.crt"
-    fi
-  fi
-  if [ -z "$HOST_SSL_CRT" ]; then
-    if [ -f "/etc/letsencrypt/live/domain/fullchain.pem" ]; then
-      HOST_SSL_CRT="/etc/letsencrypt/live/domain/fullchain.pem"
-    elif [ -f "/etc/ssl/CA/CasjaysDev/certs/localhost.crt" ]; then
-      HOST_SSL_CRT="/etc/ssl/CA/CasjaysDev/certs/localhost.crt"
-    fi
-  fi
-  if [ -z "$HOST_SSL_KEY" ]; then
-    if [ -f "/etc/letsencrypt/live/domain/privkey.pem" ]; then
-      HOST_SSL_KEY="/etc/letsencrypt/live/domain/privkey.pem"
-    elif [ -f "/etc/ssl/CA/CasjaysDev/private/localhost.key" ]; then
-      HOST_SSL_KEY="/etc/ssl/CA/CasjaysDev/private/localhost.key"
-    fi
-  fi
-  if [ -n "$HOST_SSL_CA" ]; then
-    HOST_SSL_CA="$(realpath "$HOST_SSL_CA")"
-  fi
-  if [ -n "$HOST_SSL_CRT" ]; then
-    HOST_SSL_CRT="$(realpath "$HOST_SSL_CRT")"
-  fi
-  if [ -n "$HOST_SSL_KEY" ]; then
-    HOST_SSL_KEY="$(realpath "$HOST_SSL_KEY")"
-  fi
-  SSL_ENABLED="yes"
-fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Setup arrays/empty variables
 PRETTY_PORT=""
