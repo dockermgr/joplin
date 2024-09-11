@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409101933-git
+##@Version           :  202409110928-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Tuesday, Sep 10, 2024 19:33 EDT
+# @@Created          :  Wednesday, Sep 11, 2024 09:28 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -29,7 +29,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409101933-git"
+VERSION="202409110928-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -541,7 +541,7 @@ __custom_docker_env() {
 # App Settings
 APP_PORT="80"
 APP_NAME="CasjaysDev Notes"
-APP_BASE_URL="http://$CONTAINER_HOSTNAME"
+APP_BASE_URL="https://$CONTAINER_HOSTNAME"
 RUNNING_IN_DOCKER=true
 # Storage Options
 STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
@@ -549,7 +549,7 @@ STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
 SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
 # Email Settings
 MAILER_ENABLED=1
-MAILER_HOST=smtp-relay.$SET_HOST_FULL_DOMAIN
+MAILER_HOST=smtp-relay.$CONTAINER_DOMAINNAME
 MAILER_PORT=465
 MAILER_SECURITY=starttls
 MAILER_NOREPLY_NAME="CasjaysDev Notes"
@@ -2190,8 +2190,14 @@ if [ -x "$DOCKERMGR_INSTALL_SCRIPT" ]; then
   printf_cyan "Reinstalling container: $CONTAINER_NAME"
   eval "$DOCKERMGR_INSTALL_SCRIPT" 2>"${TMP:-/tmp}/$APPNAME.err.log" >/dev/null
   __container_is_running && exitCode=0 || exitCode=1
-  [ $exitCode = 0 ] && printf_green "Your container has been installed" || printf_red "Failed to reinstall the container"
-  __printf_color "3" "Errors logged to:" "${TMP:-/tmp}/$APPNAME.err.log"
+  if [ $exitCode = 0 ]; then
+    printf_green "Your container has been installed"
+  else
+    printf_red "Failed to reinstall the container"
+    __printf_color "3" "Errors logged to: ${TMP:-/tmp}/$APPNAME.err.log"
+    [ -f "$DOCKERMGR_INSTALL_SCRIPT" ] && mv -f "$DOCKERMGR_INSTALL_SCRIPT" "${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}"
+    [ -f "${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}" ] && printf_yellow "Script moved to: ${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}"
+  fi
   exit $exitCode
 else
   __create_docker_script
@@ -2228,7 +2234,7 @@ if [ "$NINGX_VHOSTS_WRITABLE" = "true" ]; then
   NGINX_VHOST_TMP_NAMES=()
   NGINX_VHOST_ENABLED="true"
   NGINX_VHOST_SET_NAMES="${CONTAINER_WEB_SERVER_VHOSTS//,/ }"
-  NGINX_CONFIG_NAME="${CONTAINER_WEB_SERVER_CONFIG_NAME:-$CONTAINER_NAME}"
+  NGINX_CONFIG_NAME="${CONTAINER_WEB_SERVER_CONFIG_NAME:-$CONTAINER_HOSTNAME}"
   NGINX_MAIN_CONFIG="$NGINX_DIR/vhosts.d/$NGINX_CONFIG_NAME.conf"
   NGINX_VHOST_CONFIG="$NGINX_DIR/vhosts.d/$NGINX_CONFIG_NAME.custom.conf"
   NGINX_INC_CONFIG="$NGINX_DIR/conf.d/vhosts/$NGINX_CONFIG_NAME.conf"
@@ -2258,11 +2264,11 @@ if [ "$NINGX_VHOSTS_WRITABLE" = "true" ]; then
           set_vhost=""
         elif echo "$set_vhost" | grep -q '[.]myhost$'; then # map to vhost.hostname
           vhost="$(__set_vhost_alias "$set_vhost" ".myhost" "")"
-          NGINX_VHOST_TMP_NAMES+=("$vhost.$CONTAINER_HOSTNAME")
+          NGINX_VHOST_TMP_NAMES+=("$vhost.$HOSTNAME")
           set_vhost=""
         elif echo "$set_vhost" | grep -q '[.]mydomain$'; then # map to vhost.domain or map to vhost.hostname
           vhost="$(__set_vhost_alias "$set_vhost" ".mydomain" "")"
-          NGINX_VHOST_TMP_NAMES+=("$vhost.${CONTAINER_DOMAINNAME:-$CONTAINER_HOSTNAME}")
+          NGINX_VHOST_TMP_NAMES+=("$vhost.$CONTAINER_DOMAINNAME")
           set_vhost=""
         elif echo "$set_vhost" | grep -q '.*[a-zA-Z0-9]\.\*$'; then # map to vhost.*
           NGINX_VHOST_TMP_NAMES+=("$set_vhost")
@@ -2607,6 +2613,8 @@ else
   __printf_color "6" "The container $CONTAINER_NAME seems to have failed"
   if [ "$ERROR_LOG" = "true" ]; then
     __printf_color "3" "Errors logged to:" "${TMP:-/tmp}/$APPNAME.err.log"
+    [ -f "$DOCKERMGR_INSTALL_SCRIPT" ] && mv -f "$DOCKERMGR_INSTALL_SCRIPT" "${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}"
+    [ -f "${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}" ] && printf_yellow "Script moved to: ${DOCKERMGR_INSTALL_SCRIPT//.sh/.$$.bak.sh}"
   else
     printf_red "Something seems to have gone wrong with the install"
   fi
