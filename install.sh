@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409111258-git
+##@Version           :  202409111419-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Wednesday, Sep 11, 2024 12:58 EDT
+# @@Created          :  Wednesday, Sep 11, 2024 14:19 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -29,7 +29,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409111258-git"
+VERSION="202409111419-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -85,10 +85,10 @@ export INSTDIR="$HOME/.local/share/CasjaysDev/$SCRIPTS_PREFIX/$APPNAME"
 export DOCKERMGR_CONFIG_DIR="${DOCKERMGR_CONFIG_DIR:-$HOME/.config/myscripts/$SCRIPTS_PREFIX}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set default docker home for containers
-export APPDIR="$HOME/.local/share/srv/docker/$DOCKER_REGISTRY_ORG_NAME"
+export APPDIR="$HOME/.local/share/srv/docker/$DOCKER_REGISTRY_ORG_NAME/$DOCKER_REGISTRY_ORG_REPO"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set the mountpoint directory - Defaults to $APPDIR/$APPNAME/rootfs
-export DATADIR="$APPDIR/$DOCKER_REGISTRY_ORG_REPO/rootfs"
+export DATADIR="$HOME/.local/share/srv/docker/$DOCKER_REGISTRY_ORG_NAME/$DOCKER_REGISTRY_ORG_REPO/rootfs"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Call the main function
 dockermgr_install
@@ -527,8 +527,8 @@ HOST_CRON_SCHEDULE=""
 HOST_CRON_COMMAND=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Containers default username/password
-CONTAINER_DEFAULT_USERNAME="admin@localhost"
-CONTAINER_DEFAULT_PASSWORD="admin"
+CONTAINER_DEFAULT_USERNAME=""
+CONTAINER_DEFAULT_PASSWORD=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Show post install message
 POST_SHOW_FINISHED_MESSAGE=""
@@ -540,7 +540,7 @@ DOCKERMGR_ENABLE_INSTALL_SCRIPT="yes"
 __custom_docker_env() {
   cat <<EOF | tee -p | grep -v '^$'
 # App Settings
-APP_PORT="80"
+APP_PORT="$CONTAINER_WEB_SERVER_INT_PORT"
 APP_NAME="CasjaysDev Notes"
 APP_BASE_URL="https://$CONTAINER_HOSTNAME"
 RUNNING_IN_DOCKER=true
@@ -687,8 +687,8 @@ __create_uninstall() {
   mkdir -p "$DOCKERMGR_CONFIG_DIR/uninstall"
   cat <<EOF >"$DOCKERMGR_CONFIG_DIR/uninstall/$APPNAME"
 APPDIR="$APPDIR"
-DATADIR="$DATADIR"
 INSTDIR="$INSTDIR"
+DATADIR="${DATADIR//\/rootfs/}"
 DOCKERMGR_CONFIG_DIR="$DOCKERMGR_CONFIG_DIR"
 CONTAINER_NAME="$CONTAINER_NAME"
 DOCKER_NAME="$CONTAINER_NAME"
@@ -719,7 +719,7 @@ __trim() {
   local var="$*"
   var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
   var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
-  printf '%s' "$var" | grep -v '^$' | __remove_extra_spaces
+  printf '%s' "$var" | grep -v '^$' | sort -u | __remove_extra_spaces
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __test_public_reachable() {
@@ -2122,17 +2122,18 @@ if [ -n "$CONTAINER_CREATE_DIRECTORY" ]; then
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Copy over data files - keep the same stucture as -v DATADIR/mnt:/mnt
-if [ -d "$INSTDIR/rootfs" ] && [ ! -f "$DATADIR/.installed" ]; then
+INSTALLED_FILE_NAME="$APPDIR/.installed"
+if [ -d "$INSTDIR/rootfs" ] && [ ! -f "$INSTALLED_FILE_NAME" ]; then
   __printf_color "3" "Copying files to $DATADIR"
   __sudo_exec cp -Rf "$INSTDIR/rootfs/." "$DATADIR/" &>/dev/null
   find "$DATADIR" -name ".gitkeep" -type f -exec rm -rf {} \; &>/dev/null
 fi
-if [ -f "$DATADIR/.installed" ]; then
-  __sudo_exec date +'Updated on %Y-%m-%d at %H:%M' | tee -p "$DATADIR/.installed" &>/dev/null
+if [ -f "$INSTALLED_FILE_NAME" ]; then
+  __sudo_exec date +'Updated on %Y-%m-%d at %H:%M' | tee -p "$INSTALLED_FILE_NAME" &>/dev/null
 else
+  __sudo_exec chown -f "$USER":"$USER" "$INSTDIR" "$INSTDIR" &>/dev/null
   __sudo_exec chown -Rf "$USER":"$USER" "$DOCKERMGR_CONFIG_DIR" &>/dev/null
-  __sudo_exec chown -f "$USER":"$USER" "$DATADIR" "$INSTDIR" "$INSTDIR" &>/dev/null
-  __sudo_exec date +'installed on %Y-%m-%d at %H:%M' | tee -p "$DATADIR/.installed" &>/dev/null
+  __sudo_exec date +'installed on %Y-%m-%d at %H:%M' | tee -p "$INSTALLED_FILE_NAME" &>/dev/null
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Mount /etc/resolv.conf file in the container
