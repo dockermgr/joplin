@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409111419-git
+##@Version           :  202409111442-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Wednesday, Sep 11, 2024 14:19 EDT
+# @@Created          :  Wednesday, Sep 11, 2024 14:42 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -29,7 +29,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409111419-git"
+VERSION="202409111442-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -351,7 +351,7 @@ HOST_MODULES_MOUNT_ENABLED="no"
 CONTAINER_NAME=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set container hostname and domain - Default: [$APPNAME.$SET_HOST_FULL_NAME] [$SET_HOST_FULL_DOMAIN]
-CONTAINER_HOSTNAME="$APPNAME"
+CONTAINER_HOSTNAME="joplin"
 CONTAINER_DOMAINNAME="casjay.pro"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set the network type - default is bridge - [bridge/host]
@@ -401,7 +401,8 @@ CONTAINER_ADD_CUSTOM_PORT=""
 CONTAINER_EMAIL_ENABLED=""
 CONTAINER_EMAIL_USER=""
 CONTAINER_EMAIL_DOMAIN=""
-CONTAINER_EMAIL_RELAY=""
+CONTAINER_EMAIL_RELAY_SERVER="smtp-relay.$SET_HOST_FULL_DOMAIN"
+CONTAINER_EMAIL_RELAY_PORT="587"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Easy setup for services - [no/yes]
 CONTAINER_SERVICE_PUBLIC="yes"
@@ -540,7 +541,7 @@ DOCKERMGR_ENABLE_INSTALL_SCRIPT="yes"
 __custom_docker_env() {
   cat <<EOF | tee -p | grep -v '^$'
 # App Settings
-APP_PORT="$CONTAINER_WEB_SERVER_INT_PORT"
+APP_PORT="${CONTAINER_WEB_SERVER_INT_PORT:-80}"
 APP_NAME="CasjaysDev Notes"
 APP_BASE_URL="https://$CONTAINER_HOSTNAME"
 RUNNING_IN_DOCKER=true
@@ -550,8 +551,8 @@ STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
 SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
 # Email Settings
 MAILER_ENABLED=1
-MAILER_HOST=smtp-relay.$CONTAINER_DOMAINNAME
-MAILER_PORT=587
+MAILER_HOST="${CONTAINER_EMAIL_RELAY_SERVER:-smtp-relay.$CONTAINER_DOMAINNAME}"
+MAILER_PORT="${CONTAINER_EMAIL_RELAY_PORT:-587}"
 MAILER_SECURITY=starttls
 MAILER_NOREPLY_NAME="CasjaysDev Notes"
 MAILER_NOREPLY_EMAIL="no-reply@$CONTAINER_HOSTNAME"
@@ -628,7 +629,7 @@ CONTAINER_ADD_CUSTOM_PORT="\${ENV_CONTAINER_ADD_CUSTOM_PORT:-$CONTAINER_ADD_CUST
 CONTAINER_EMAIL_ENABLED="\${ENV_CONTAINER_EMAIL_ENABLED:-$CONTAINER_EMAIL_ENABLED}"
 CONTAINER_EMAIL_USER="\${ENV_CONTAINER_EMAIL_USER:-$CONTAINER_EMAIL_USER}"
 CONTAINER_EMAIL_DOMAIN="\${ENV_CONTAINER_EMAIL_DOMAIN:-$CONTAINER_EMAIL_DOMAIN}"
-CONTAINER_EMAIL_RELAY="\${ENV_CONTAINER_EMAIL_RELAY:-$CONTAINER_EMAIL_RELAY}"
+CONTAINER_EMAIL_RELAY_SERVER="\${ENV_CONTAINER_EMAIL_RELAY:-$CONTAINER_EMAIL_RELAY_SERVER}"
 CONTAINER_DATABASE_CREATE="\${ENV_CONTAINER_DATABASE_CREATE:-$CONTAINER_DATABASE_CREATE}"
 CONTAINER_DATABASE_LISTEN="\${ENV_CONTAINER_DATABASE_LISTEN:-$CONTAINER_DATABASE_LISTEN}"
 CONTAINER_CUSTOM_DATABASE_ENABLED="\${ENV_CONTAINER_CUSTOM_DATABASE_ENABLED:-$CONTAINER_CUSTOM_DATABASE_ENABLED}"
@@ -1033,7 +1034,7 @@ CONTAINER_ENV_PASS_NAME="${ENV_CONTAINER_ENV_PASS_NAME:-$CONTAINER_ENV_PASS_NAME
 CONTAINER_EMAIL_ENABLED="${ENV_CONTAINER_EMAIL_ENABLED:-$CONTAINER_EMAIL_ENABLED}"
 CONTAINER_EMAIL_USER="${ENV_CONTAINER_EMAIL_USER:-$CONTAINER_EMAIL_USER}"
 CONTAINER_EMAIL_DOMAIN="${ENV_CONTAINER_EMAIL_DOMAIN:-$CONTAINER_EMAIL_DOMAIN}"
-CONTAINER_EMAIL_RELAY="${ENV_CONTAINER_EMAIL_RELAY:-$CONTAINER_EMAIL_RELAY}"
+CONTAINER_EMAIL_RELAY_SERVER="${ENV_CONTAINER_EMAIL_RELAY:-$CONTAINER_EMAIL_RELAY_SERVER}"
 CONTAINER_SERVICES_LIST="${ENV_CONTAINER_SERVICES_LIST:-$CONTAINER_SERVICES_LIST}"
 CONTAINER_MOUNT_DATA_ENABLED="${ENV_CONTAINER_MOUNT_DATA_ENABLED:-$CONTAINER_MOUNT_DATA_ENABLED}"
 CONTAINER_MOUNT_DATA_MOUNT_DIR="${ENV_CONTAINER_MOUNT_DATA_MOUNT_DIR:-$CONTAINER_MOUNT_DATA_MOUNT_DIR}"
@@ -1065,6 +1066,7 @@ DOCKER_SET_OPTIONS=()
 CONTAINER_ENV_PORTS=()
 DOCKER_SET_TMP_PUBLISH=()
 NGINX_REPLACE_INCLUDE=""
+CONTAINER_EMAIL_PORTS=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 DOCKER_SET_OPTIONS+=("--name=$CONTAINER_NAME")
 DOCKER_SET_OPTIONS+=("--env CONTAINER_NAME=$CONTAINER_NAME")
@@ -1443,24 +1445,31 @@ if [ "$CONTAINER_IS_TFTP_SERVER" = "yes" ]; then
 fi
 if [ "$CONTAINER_IS_SMTP_SERVER" = "yes" ]; then
   service_port="$(__netstat "25" | grep -v 'docker' && __port || echo "25")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:25/tcp")
   service_port="$(__netstat "465" | grep -v 'docker' && __port || echo "465")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:465/tcp")
   service_port="$(__netstat "587" | grep -v 'docker' && __port || echo "587")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:587/tcp")
   unset service_port
 fi
 if [ "$CONTAINER_IS_POP3_SERVER" = "yes" ]; then
   service_port="$(__netstat "110" | grep -v 'docker' && __port || echo "110")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:110/tcp")
   service_port="$(__netstat "995" | grep -v 'docker' && __port || echo "995")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:995/tcp")
   unset service_port
 fi
 if [ "$CONTAINER_IS_IMAP_SERVER" = "yes" ]; then
   service_port="$(__netstat "143" | grep -v 'docker' && __port || echo "143")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:143/tcp")
   service_port="$(__netstat "993" | grep -v 'docker' && __port || echo "993")"
+  CONTAINER_EMAIL_PORTS+="$service_port"
   DOCKER_SET_TMP_PUBLISH+=("--publish $CONTAINER_SERVICE_PUBLIC:$service_port:993/tcp")
   unset service_port
 fi
@@ -1632,20 +1641,22 @@ if [ "$CONTAINER_EMAIL_ENABLED" = "yes" ]; then
   if [ -n "$CONTAINER_EMAIL_DOMAIN" ]; then
     DOCKER_SET_OPTIONS+=("--env EMAIL_DOMAIN=$CONTAINER_EMAIL_DOMAIN")
   fi
-  if [ -n "$CONTAINER_EMAIL_RELAY" ]; then
-    DOCKER_SET_OPTIONS+=("--env EMAIL_RELAY=$CONTAINER_EMAIL_RELAY")
+  if [ -n "$CONTAINER_EMAIL_RELAY_SERVER" ]; then
+    DOCKER_SET_OPTIONS+=("--env CONTAINER_EMAIL_RELAY_SERVER=$CONTAINER_EMAIL_RELAY_SERVER")
+  fi
+  if [ -n "$CONTAINER_EMAIL_RELAY_PORT" ]; then
+    DOCKER_SET_OPTIONS+=("--env CONTAINER_EMAIL_RELAY_PORT=$CONTAINER_EMAIL_RELAY_PORT")
   fi
   if [ -n "$CONTAINER_EMAIL_USER" ]; then
     DOCKER_SET_OPTIONS+=("--env EMAIL_ADMIN=$CONTAINER_EMAIL_USER@")
   fi
-  if [ -z "$CONTAINER_EMAIL_PORTS" ]; then
-    CONTAINER_EMAIL_PORTS="25,465,587"
+  if [ -n "$CONTAINER_EMAIL_PORTS" ]; then
+    CONTAINER_EMAIL_PORTS="$(echo "${CONTAINER_EMAIL_PORTS//,/ }" | tr ' ' '\n')"
+    for port in $CONTAINER_EMAIL_PORTS; do
+      DOCKER_SET_TMP_PUBLISH+=("--publish $HOST_LISTEN_ADDR:$port:$port")
+    done
   fi
-  CONTAINER_EMAIL_PORTS="$(echo "${CONTAINER_EMAIL_PORTS//,/ }" | tr ' ' '\n')"
   DOCKER_SET_OPTIONS+=("--env EMAIL_ENABLED=$CONTAINER_EMAIL_ENABLED")
-  for port in $CONTAINER_EMAIL_PORTS; do
-    DOCKER_SET_TMP_PUBLISH+=("--publish $HOST_LISTEN_ADDR:$port:$port")
-  done
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # process list
