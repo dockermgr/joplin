@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409111052-git
+##@Version           :  202409111132-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Wednesday, Sep 11, 2024 10:52 EDT
+# @@Created          :  Wednesday, Sep 11, 2024 11:32 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
 # @@TODO             :  Completely rewrite/refactor/variable cleanup
-# @@Other            :  
-# @@Resource         :  
+# @@Other            :
+# @@Resource         :
 # @@Terminal App     :  no
 # @@sudo/root        :  no
 # @@Template         :  installers/dockermgr
@@ -29,7 +29,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409111052-git"
+VERSION="202409111132-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -65,20 +65,30 @@ fi
 # Make sure the scripts repo is installed
 scripts_check
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# docker registry settings
+export DOCKER_REGISTRY_ORG_REPO="$APPNAME"
+export DOCKER_REGISTRY_ORG_NAME="casjaysdevdocker"
+export DOCKER_REGISTRY_URL="docker.io"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# URL to container image - docker pull - [URL]
+export DOCKER_HUB_IMAGE_URL="$DOCKER_REGISTRY_URL/$DOCKER_REGISTRY_ORG_NAME/$DOCKER_REGISTRY_ORG_REPO"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# image tag - [docker pull DOCKER_HUB_IMAGE_URL:tag]
+export DOCKER_HUB_IMAGE_TAG="latest"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Repository variables
-REPO="${DOCKERMGRREPO:-https://github.com/$SCRIPTS_PREFIX}/joplin"
-APPVERSION="$(__appversion "$REPO/raw/$REPO_BRANCH/version.txt")"
+export REPO="${DOCKERMGRREPO:-https://github.com/$SCRIPTS_PREFIX}/$APPNAME"
+export APPVERSION="$(__appversion "$REPO/raw/$REPO_BRANCH/version.txt")"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Defaults variables
-APPNAME="joplin"
-export INSTDIR="$HOME/.local/share/CasjaysDev/$SCRIPTS_PREFIX/joplin"
+export INSTDIR="$HOME/.local/share/CasjaysDev/$SCRIPTS_PREFIX/$APPNAME"
 export DOCKERMGR_CONFIG_DIR="${DOCKERMGR_CONFIG_DIR:-$HOME/.config/myscripts/$SCRIPTS_PREFIX}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set default docker home for containers
-export APPDIR="$HOME/.local/share/srv/docker"
+export APPDIR="$HOME/.local/share/srv/docker/$DOCKER_REGISTRY_ORG_NAME"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Set the mountpoint directory - Defaults to $APPDIR/$CONTAINER_NAME/rootfs
-DATADIR=""
+# Set the mountpoint directory - Defaults to $APPDIR/$APPNAME/rootfs
+export DATADIR="$APPDIR/$DOCKER_REGISTRY_ORG_NAME/rootfs"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Call the main function
 dockermgr_install
@@ -125,7 +135,7 @@ __docker_ps_all() { docker ps -a 2>&1 | grep -i ${1:-} "$CONTAINER_NAME" && retu
 __password() { head -n1000 -c 10000 "/dev/urandom" | tr -dc '0-9a-zA-Z' | head -c${1:-16} && echo ""; }
 __total_memory() { mem="$(free | grep -i 'mem: ' | awk -F ' ' '{print $2}')" && echo $((mem / 1000)); }
 __docker_is_running() { ps aux 2>/dev/null | grep 'dockerd' | grep -v ' grep ' | grep -q '^' || return 1; }
-__container_name() { echo "$HUB_IMAGE_ORG-$HUB_IMAGE_REPO-$HUB_IMAGE_TAG" | sed 's|/|-|g' | grep '^' || return 1; }
+__container_name() { echo "$DOCKER_REGISTRY_ORG_NAME-$DOCKER_REGISTRY_ORG_REPO-$DOCKER_HUB_IMAGE_TAG" | sed 's|/|-|g' | grep '^' || return 1; }
 __is_server() { echo "${SET_HOST_FULL_NAME:-$HOSTNAME}" | grep -q '^server\..*\..*[a-zA-Z0-9][a-zA-Z0-9]$' || return 1; }
 __host_name() { hostname -f 2>/dev/null | grep -F '.' | grep '^' || hostname -f 2>/dev/null | grep '^' || echo "$HOSTNAME"; }
 __container_is_running() { docker ps 2>&1 | grep -i "$CONTAINER_NAME" | grep -qi 'ago.* Up.* [0-9].* ' && return 0 || return 1; }
@@ -240,18 +250,6 @@ CONTAINER_SSL_CA=""
 CONTAINER_SSL_CRT=""
 CONTAINER_SSL_KEY=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# registry org
-HUB_ORG="casjaysdevdocker"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# URL to container image - docker pull - [URL]
-HUB_IMAGE_URL="$HUB_ORG/joplin"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# image tag - [docker pull HUB_IMAGE_URL:tag]
-HUB_IMAGE_TAG="latest"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Set the container name Default: [org-repo-tag]
-CONTAINER_NAME=""
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set this if the container depend on external file/app
 CONTAINER_REQUIRES=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -349,9 +347,12 @@ HOST_SYS_MOUNT_ENABLED="no"
 HOST_PROC_MOUNT_ENABLED="no"
 HOST_MODULES_MOUNT_ENABLED="no"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Set Container name - Default $DOCKER_REGISTRY_ORG_NAME=$APPNAME-$DOCKER_HUB_IMAGE_TAG
+CONTAINER_NAME=""
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set container hostname and domain - Default: [joplin.$SET_HOST_FULL_NAME] [$SET_HOST_FULL_DOMAIN]
-CONTAINER_HOSTNAME=""
-CONTAINER_DOMAINNAME=""
+CONTAINER_HOSTNAME="joplin"
+CONTAINER_DOMAINNAME="casjay.pro"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set the network type - default is bridge - [bridge/host]
 HOST_DOCKER_NETWORK="bridge"
@@ -379,7 +380,7 @@ HOST_NGINX_INTERNAL_DOMAIN=""
 HOST_NGINX_INTERNAL_HOST=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Enable this if container is running a webserver - [yes/no] [internalPort] [yes/no] [yes/no] [listen]
-CONTAINER_WEB_SERVER_ENABLED="no"
+CONTAINER_WEB_SERVER_ENABLED="yes"
 CONTAINER_WEB_SERVER_INT_PORT="80"
 CONTAINER_WEB_SERVER_SSL_ENABLED="no"
 CONTAINER_WEB_SERVER_AUTH_ENABLED="no"
@@ -538,6 +539,22 @@ DOCKERMGR_ENABLE_INSTALL_SCRIPT="yes"
 # Set custom container enviroment variables - [MYVAR="VAR"]
 __custom_docker_env() {
   cat <<EOF | tee -p | grep -v '^$'
+# App Settings
+APP_PORT="80"
+APP_NAME="CasjaysDev Notes"
+APP_BASE_URL="https://$CONTAINER_HOSTNAME"
+RUNNING_IN_DOCKER=true
+# Storage Options
+STORAGE_DRIVER="Type=Filesystem; Path=/data/joplin"
+# Database settings
+SQLITE_DATABASE="$DATABASE_DIR_SQLITE/joplin.db"
+# Email Settings
+MAILER_ENABLED=1
+MAILER_HOST=smtp-relay.$CONTAINER_DOMAINNAME
+MAILER_PORT=465
+MAILER_SECURITY=starttls
+MAILER_NOREPLY_NAME="CasjaysDev Notes"
+MAILER_NOREPLY_EMAIL="no-reply@$CONTAINER_HOSTNAME"
 
 EOF
 }
@@ -669,6 +686,15 @@ __create_uninstall() {
   NGINX_FILES="$(echo "$NGINX_CONF_FILE $NGINX_INC_CONFIG $NGINX_VHOST_CONFIG $NGINX_INTERNAL_IS_SET" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')"
   mkdir -p "$DOCKERMGR_CONFIG_DIR/uninstall"
   cat <<EOF >"$DOCKERMGR_CONFIG_DIR/uninstall/$APPNAME"
+APPDIR="$APPDIR"
+DATADIR="$DATADIR"
+INSTDIR="$INSTDIR"
+CONTAINER_NAME="$CONTAINER_NAME"
+DOCKER_NAME="$CONTAINER_NAME"
+DOCKER_REGISTRY_ORG_NAME="$DOCKER_REGISTRY_ORG_NAME"
+DOCKER_REGISTRY_ORG_REPO="$DOCKER_REGISTRY_ORG_REPO"
+DOCKER_REGISTRY_URL="$DOCKER_REGISTRY_URL"
+ADD_REMOVE_FILES="$(__trim "$REMOVE_FILES")"
 NGINX_FILES="$(__trim "$NGINX_FILES")"
 EOF
 }
@@ -709,7 +735,7 @@ __test_public_reachable() {
 __create_docker_script() {
   [ -n "$EXECUTE_DOCKER_CMD" ] || return
   local replace_with exec_docker_cmd create_docker_script_message_pre create_docker_script_message_post
-  replace_with="$HUB_IMAGE_URL:$HUB_IMAGE_TAG $CONTAINER_COMMANDS"
+  replace_with="$DOCKER_HUB_IMAGE_URL:$DOCKER_HUB_IMAGE_TAG $CONTAINER_COMMANDS"
   exec_docker_cmd="$(echo "$EXECUTE_DOCKER_CMD" | grep -v '^$' | sed 's/ --/\n  --/g;s| -d| -d \\|g' | grep -v '^$' | sed '/  --/ s/$/ \\/' | grep '^')"
   create_docker_script_message_pre="${create_docker_script_message_pre:-Failed to execute $EXECUTE_PRE_INSTALL}"
   create_docker_script_message_post="${create_docker_script_message_post:-Failed to create $CONTAINER_NAME}"
@@ -727,7 +753,7 @@ if [ \$statusCode -ne 0 ]; then
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 $exec_docker_cmd
-  $HUB_IMAGE_URL:$HUB_IMAGE_TAG $CONTAINER_COMMANDS
+  $DOCKER_HUB_IMAGE_URL:$DOCKER_HUB_IMAGE_TAG $CONTAINER_COMMANDS
 statusCode=\$?
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ \$statusCode -ne 0 ]; then
@@ -745,41 +771,36 @@ exit 0
 
 EOF
   [ -f "$DOCKERMGR_INSTALL_SCRIPT" ] || return 1
-  sed -i 's| '$HUB_IMAGE_URL':'$HUB_IMAGE_TAG' .*\\| \\|g' "$DOCKERMGR_INSTALL_SCRIPT"
+  sed -i 's| '$DOCKER_HUB_IMAGE_URL':'$DOCKER_HUB_IMAGE_TAG' .*\\| \\|g' "$DOCKERMGR_INSTALL_SCRIPT"
   chmod -Rf 755 "$DOCKERMGR_INSTALL_SCRIPT"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ -z "$HUB_IMAGE_URL" ] || [ "$HUB_IMAGE_URL" = " " ]; then
+if [ -z "$DOCKER_HUB_IMAGE_URL" ] || [ "$DOCKER_HUB_IMAGE_URL" = " " ]; then
   printf_exit "Please set the url to the containers image"
-elif echo "$HUB_IMAGE_URL" | grep -q ':'; then
-  HUB_IMAGE_URL="$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $1}')"
-  HUB_IMAGE_TAG="${HUB_IMAGE_TAG:-$(echo "$HUB_IMAGE_URL" | awk -F':' '{print $2}')}"
+elif echo "$DOCKER_HUB_IMAGE_URL" | grep -q ':'; then
+  DOCKER_HUB_IMAGE_URL="$(echo "$DOCKER_HUB_IMAGE_URL" | awk -F':' '{print $1}')"
+  DOCKER_HUB_IMAGE_TAG="${DOCKER_HUB_IMAGE_TAG:-$(echo "$DOCKER_HUB_IMAGE_URL" | awk -F':' '{print $2}')}"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Ensure that the image has a tag
-[ -n "$HUB_IMAGE_TAG" ] || HUB_IMAGE_TAG="latest"
+[ -n "$DOCKER_HUB_IMAGE_TAG" ] || DOCKER_HUB_IMAGE_TAG="latest"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # cleanup registry variables
-HUB_IMAGE_TAG="${HUB_IMAGE_TAG//*:/}"
-HUB_IMAGE_URL="${HUB_IMAGE_URL//*:\/\//}"
-HUB_IMAGE_URL="${HUB_IMAGE_URL//:*/}"
-HUB_IMAGE_REPO="$(echo "$HUB_IMAGE_URL" | awk -F '/' '{print $NF}')"
-HUB_IMAGE_ORG="$(echo "$HUB_IMAGE_URL" | awk -F '/' '{print $(NF-1)}')"
+DOCKER_HUB_IMAGE_TAG="${DOCKER_HUB_IMAGE_TAG//*:/}"
+DOCKER_HUB_IMAGE_URL="${DOCKER_HUB_IMAGE_URL//*:\/\//}"
+DOCKER_HUB_IMAGE_URL="${DOCKER_HUB_IMAGE_URL//:*/}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set containers name
-REPO_NAME="$(basename "${HUB_IMAGE_URL//:*/}")"
 if [ -z "$CONTAINER_NAME" ]; then
-  if [ "$REPO_NAME" = "$APPNAME" ]; then
-    CONTAINER_NAME="$(echo "$HUB_IMAGE_ORG-$HUB_IMAGE_REPO-$HUB_IMAGE_TAG")"
+  if [ "$DOCKER_REGISTRY_ORG_REPO" = "$APPNAME" ]; then
+    CONTAINER_NAME="$(echo "$DOCKER_REGISTRY_ORG_NAME-$DOCKER_REGISTRY_ORG_REPO-$DOCKER_HUB_IMAGE_TAG")"
   else
-    CONTAINER_NAME="$(echo "$HUB_IMAGE_ORG-$APPNAME-$HUB_IMAGE_TAG")"
+    CONTAINER_NAME="$(echo "$DOCKER_REGISTRY_ORG_NAME-$APPNAME-$DOCKER_HUB_IMAGE_TAG")"
   fi
 fi
-CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "$HUB_IMAGE_ORG-$HUB_IMAGE_REPO-$HUB_IMAGE_TAG")}"
+CONTAINER_NAME="${CONTAINER_NAME:-$(__container_name || echo "$DOCKER_REGISTRY_ORG_NAME-$DOCKER_REGISTRY_ORG_REPO-$DOCKER_HUB_IMAGE_TAG")}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Define folders
-DATADIR="$APPDIR/$CONTAINER_NAME/rootfs"
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 HOST_DATA_DIR="$DATADIR/data"
 HOST_CONFIG_DIR="$DATADIR/config"
 LOCAL_DATA_DIR="${LOCAL_DATA_DIR:-$HOST_DATA_DIR}"
@@ -2016,8 +2037,8 @@ DOCKER_CUSTOM_ARRAY="$(__retrieve_custom_env | __custom_docker_clean_env)"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Clean up variables
 DOCKER_SET_PUBLISH="$(printf '%s\n' "${DOCKER_SET_TMP_PUBLISH[@]}" | sort -Vu | tr '\n' ' ')" # ensure only one
-HUB_IMAGE_URL="$(__trim "${HUB_IMAGE_URL[*]:-}")"                                             # image url
-HUB_IMAGE_TAG="$(__trim "${HUB_IMAGE_TAG[*]:-}")"                                             # image tag
+DOCKER_HUB_IMAGE_URL="$(__trim "${DOCKER_HUB_IMAGE_URL[*]:-}")"                               # image url
+DOCKER_HUB_IMAGE_TAG="$(__trim "${DOCKER_HUB_IMAGE_TAG[*]:-}")"                               # image tag
 DOCKER_GET_CAP="$(__trim "${DOCKER_SET_CAP[*]:-}")"                                           # --capabilites
 DOCKER_GET_ENV="$(__trim "${DOCKER_SET_ENV_VAR[*]:-}")"                                       # --env
 DOCKER_GET_DEV="$(__trim "${DOCKER_SET_DEV[*]:-}")"                                           # --device
@@ -2033,8 +2054,8 @@ CONTAINER_COMMANDS="$(__trim "${CONTAINER_COMMANDS[*]:-}")"                     
 [ -n "$CONTAINER_COMMANDS" ] || CONTAINER_COMMANDS="    "
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # set docker commands - script creation - execute command #
-SET_EXECUTE_PRE_INSTALL="$(echo "docker stop $CONTAINER_NAME &>/dev/null;docker rm -f $CONTAINER_NAME &>/dev/null;docker pull -q $HUB_IMAGE_URL:$HUB_IMAGE_TAG")"
-SET_EXECUTE_DOCKER_CMD="$(echo "docker run -d $DOCKER_GET_OPTIONS $DOCKER_GET_CUSTOM $DOCKER_GET_LINK $DOCKER_GET_LABELS $DOCKER_GET_CAP $DOCKER_GET_SYSCTL $DOCKER_GET_DEV $DOCKER_SET_DNS $DOCKER_GET_MNT $DOCKER_GET_ENV $DOCKER_GET_PUBLISH $HUB_IMAGE_URL:$HUB_IMAGE_TAG")"
+SET_EXECUTE_PRE_INSTALL="$(echo "docker stop $CONTAINER_NAME &>/dev/null;docker rm -f $CONTAINER_NAME &>/dev/null;docker pull -q $DOCKER_HUB_IMAGE_URL:$DOCKER_HUB_IMAGE_TAG")"
+SET_EXECUTE_DOCKER_CMD="$(echo "docker run -d $DOCKER_GET_OPTIONS $DOCKER_GET_CUSTOM $DOCKER_GET_LINK $DOCKER_GET_LABELS $DOCKER_GET_CAP $DOCKER_GET_SYSCTL $DOCKER_GET_DEV $DOCKER_SET_DNS $DOCKER_GET_MNT $DOCKER_GET_ENV $DOCKER_GET_PUBLISH $DOCKER_HUB_IMAGE_URL:$DOCKER_HUB_IMAGE_TAG")"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Run functions
 __container_import_variables "$CONTAINER_ENV_FILE_MOUNT"
@@ -2189,7 +2210,7 @@ else
   if [ "$INIT_SCRIPT_ONLY" = "false" ] && [ -n "$EXECUTE_DOCKER_SCRIPT" ]; then
     EXECUTE_PRE_INSTALL="$(__trim "${EXECUTE_PRE_INSTALL//||*/}")"
     EXECUTE_DOCKER_SCRIPT="$(__trim "${EXECUTE_DOCKER_SCRIPT//||*/}")"
-    __printf_color "6" "Updating the image from $HUB_IMAGE_URL with tag $HUB_IMAGE_TAG"
+    __printf_color "6" "Updating the image from $DOCKER_HUB_IMAGE_URL with tag $DOCKER_HUB_IMAGE_TAG"
     if [ -n "$EXECUTE_PRE_INSTALL" ]; then
       __printf_color "6" "Executing pre-install command"
       eval "$EXECUTE_PRE_INSTALL" 2>"${TMP:-/tmp}/$APPNAME.err.log" >/dev/null
