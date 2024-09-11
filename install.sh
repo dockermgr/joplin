@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202409111132-git
+##@Version           :  202409111203-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  LICENSE.md
 # @@ReadME           :  install.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Wednesday, Sep 11, 2024 11:32 EDT
+# @@Created          :  Wednesday, Sep 11, 2024 12:03 EDT
 # @@File             :  install.sh
 # @@Description      :  Container installer script for joplin
 # @@Changelog        :  New script
@@ -29,7 +29,7 @@
 # shellcheck disable=SC2317
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 APPNAME="joplin"
-VERSION="202409111132-git"
+VERSION="202409111203-git"
 REPO_BRANCH="${GIT_REPO_BRANCH:-main}"
 USER="${SUDO_USER:-$USER}"
 RUN_USER="${RUN_USER:-$USER}"
@@ -88,7 +88,7 @@ export DOCKERMGR_CONFIG_DIR="${DOCKERMGR_CONFIG_DIR:-$HOME/.config/myscripts/$SC
 export APPDIR="$HOME/.local/share/srv/docker/$DOCKER_REGISTRY_ORG_NAME"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set the mountpoint directory - Defaults to $APPDIR/$APPNAME/rootfs
-export DATADIR="$APPDIR/$DOCKER_REGISTRY_ORG_NAME/rootfs"
+export DATADIR="$APPDIR/$DOCKER_REGISTRY_ORG_REPO/rootfs"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Call the main function
 dockermgr_install
@@ -108,22 +108,22 @@ __sudo_exec() { [ "$DOCKERMGR_USER_CAN_SUDO" = "true" ] && sudo -HE "$@" || { [ 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # printf_space spacing color message value
 __printf_space() {
-  local padl color COLUMNS padlength pad string1 string2
-  test -n "$1" && test -z "${1//[0-9]/}" && padl="$1" && shift 1 || padl="40"
+  local padl color padlength pad string1 string2
+  test -n "$1" && test -z "${1//[0-9]/}" && padl="$1" && shift 1 || padl="20"
   test -n "$1" && test -z "${1//[0-9]/}" && color="$1" && shift 1 || color="7"
   string1="$1"
   string2="$2"
-  COLUMNS="${COLUMNS:=80}"
-  padlength="${padl:-$COLUMNS}"
+  padlength="${padl:-30}"
   pad=$(printf '\x2D%.0s' $(seq "$padlength"))
-  printf '%b%s' "$(tput setaf "$color" 2>/dev/null)" "$string1"
+  printf '%b' "$(tput setaf "$color" 2>/dev/null)"
+  printf '%s' "$string1"
   printf '%*.*s' 0 $(("$padlength" - "${#string1}" - "${#string2}")) "$pad" | sed 's|-| |g'
   printf '%s%b' "$string2" "$(tput sgr0 2>/dev/null)"
   printf '\n'
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__printf_spacing_file() { __printf_space "70" "7" "$1" "$2"; }
-__printf_spacing_color() { __printf_space "70" "$1" "$2" "$3"; }
+__printf_spacing_file() { __printf_space "20" "7" "$1" "$2"; }
+__printf_spacing_color() { __printf_space "20" "$1" "$2" "$3"; }
 __printf_color() { printf "%b" "$(tput setaf "$1" 2>/dev/null)" "$2" "$(tput sgr0 2>/dev/null)" && printf '\n'; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __cmd_exists() { type -p $1 &>/dev/null || return 1; }
@@ -696,6 +696,7 @@ DOCKER_REGISTRY_ORG_REPO="$DOCKER_REGISTRY_ORG_REPO"
 DOCKER_REGISTRY_URL="$DOCKER_REGISTRY_URL"
 ADD_REMOVE_FILES="$(__trim "$REMOVE_FILES")"
 NGINX_FILES="$(__trim "$NGINX_FILES")"
+DATABASE_BASE_DIR="$LOCAL_DATA_DIR/$DATABASE_BASE_DIR"
 EOF
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1508,7 +1509,10 @@ if [ "$CONTAINER_SQLITE_ENABLED" = "yes" ]; then
   DOCKER_SET_OPTIONS+=("--volume $LOCAL_DATA_DIR/db/sqlite:$DATABASE_DIR_SQLITE:z")
   DOCKER_SET_OPTIONS+=("--env DATABASE_DIR_SQLITE=$DATABASE_DIR_SQLITE")
   CONTAINER_DATABASE_PROTO="sqlite://$DATABASE_DIR_SQLITE"
-  [ -d "$DATADIR/$DATABASE_DIR_SQLITE" ] || CONTAINER_CREATE_DIRECTORY+=",$LOCAL_DATA_DIR/db/sqlite"
+  if [ ! -d "$LOCAL_DATA_DIR/db/sqlite" ]; then
+    mkdir -p "$LOCAL_DATA_DIR/db/sqlite"
+    chmod -Rf 777 $LOCAL_DATA_DIR/db
+  fi
   MESSAGE_SQLITE="true"
 fi
 if [ "$CONTAINER_REDIS_ENABLED" = "yes" ]; then
