@@ -528,8 +528,8 @@ HOST_CRON_SCHEDULE=""
 HOST_CRON_COMMAND=""
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Containers default username/password
-CONTAINER_DEFAULT_USERNAME=""
-CONTAINER_DEFAULT_PASSWORD=""
+CONTAINER_DEFAULT_USERNAME="admin@localhost"
+CONTAINER_DEFAULT_PASSWORD="admin"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Show post install message
 POST_SHOW_FINISHED_MESSAGE=""
